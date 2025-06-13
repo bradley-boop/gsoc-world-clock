@@ -268,39 +268,80 @@
         }
 
         function updateClock(cityData) {
-            const now = new Date();
-            const timeOptions = {
-                timeZone: cityData.timezone,
-                hour12: false,
-                hour: '2-digit',
-                minute: '2-digit',
-                second: '2-digit'
-            };
-            
-            const dateOptions = {
-                timeZone: cityData.timezone,
-                weekday: 'short',
-                month: 'short',
-                day: 'numeric'
-            };
-
-            const timeElement = document.getElementById(`time-${cityData.city}`);
-            const dateElement = document.getElementById(`date-${cityData.city}`);
-            const offsetElement = document.getElementById(`offset-${cityData.city}`);
-            
-            if (timeElement && dateElement && offsetElement) {
-                timeElement.textContent = now.toLocaleTimeString('en-US', timeOptions);
-                dateElement.textContent = now.toLocaleDateString('en-US', dateOptions);
+            try {
+                const now = new Date();
+                const timeOptions = {
+                    timeZone: cityData.timezone,
+                    hour12: false,
+                    hour: '2-digit',
+                    minute: '2-digit',
+                    second: '2-digit'
+                };
                 
-                // Display offset relative to Los Angeles
-                if (cityData.offset === 0) {
-                    offsetElement.textContent = '+0hrs';
-                } else {
-                    offsetElement.textContent = `+${cityData.offset}hrs`;
+                const dateOptions = {
+                    timeZone: cityData.timezone,
+                    weekday: 'short',
+                    month: 'short',
+                    day: 'numeric'
+                };
+
+                const timeElement = document.getElementById(`time-${cityData.city}`);
+                const dateElement = document.getElementById(`date-${cityData.city}`);
+                const offsetElement = document.getElementById(`offset-${cityData.city}`);
+                
+                if (timeElement && dateElement && offsetElement) {
+                    const timeString = now.toLocaleTimeString('en-US', timeOptions);
+                    const dateString = now.toLocaleDateString('en-US', dateOptions);
+                    
+                    // Only update if content actually changed
+                    if (timeElement.textContent !== timeString) {
+                        timeElement.textContent = timeString;
+                    }
+                    if (dateElement.textContent !== dateString) {
+                        dateElement.textContent = dateString;
+                    }
+                    
+                    // Display offset relative to Los Angeles
+                    const offsetText = cityData.offset === 0 ? '+0hrs' : `+${cityData.offset}hrs`;
+                    if (offsetElement.textContent !== offsetText) {
+                        offsetElement.textContent = offsetText;
+                    }
                 }
+            } catch (error) {
+                console.error('Error updating clock for', cityData.city, error);
             }
         }
 
+        let updateInterval;
+        let isPageVisible = true;
+
+        function updateAllClocks() {
+            if (isPageVisible) {
+                timeZones.forEach(cityData => {
+                    updateClock(cityData);
+                });
+            }
+        }
+
+        // Handle page visibility changes to pause updates when not visible
+        document.addEventListener('visibilitychange', () => {
+            isPageVisible = !document.hidden;
+            if (isPageVisible) {
+                // Resume updates when page becomes visible
+                updateAllClocks();
+            }
+        });
+
+        // Periodic cleanup and restart
+        function restartClock() {
+            if (updateInterval) {
+                clearInterval(updateInterval);
+            }
+            updateInterval = setInterval(updateAllClocks, 1000);
+            updateAllClocks();
+        }
+
+        // Initialize the clocks
         function initializeClocks() {
             const container = document.getElementById('clockContainer');
             
@@ -310,18 +351,28 @@
             });
         }
 
-        function updateAllClocks() {
-            timeZones.forEach(cityData => {
-                updateClock(cityData);
-            });
-        }
-
-        // Initialize the clocks
+        // Start the clock
         initializeClocks();
-        updateAllClocks();
+        restartClock();
 
-        // Update every second
-        setInterval(updateAllClocks, 1000);
+        // Restart the clock every hour to prevent memory issues
+        setInterval(restartClock, 3600000); // 1 hour
+
+        // Auto-refresh page daily at 3 AM to prevent long-term issues
+        function schedulePageRefresh() {
+            const now = new Date();
+            const tomorrow3AM = new Date();
+            tomorrow3AM.setDate(now.getDate() + 1);
+            tomorrow3AM.setHours(3, 0, 0, 0);
+            
+            const msUntil3AM = tomorrow3AM.getTime() - now.getTime();
+            
+            setTimeout(() => {
+                location.reload();
+            }, msUntil3AM);
+        }
+        
+        schedulePageRefresh();
 
         // Add some interactivity - click to highlight
         document.addEventListener('click', (e) => {
